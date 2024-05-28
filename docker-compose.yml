@@ -1,0 +1,56 @@
+version: '3.9'
+name: cryptalis-trading-bot
+networks:
+  cryptalis-trading-bot-network:
+    name: cryptalis_trading_bot_network
+    external: false
+
+services:
+  ibkr-clientportal-gw:
+    build: ./ibkr-clientportal-gw
+    container_name: ibkr-clientportal-gw
+    healthcheck:
+      test: [ 'CMD-SHELL', 'curl --fail http://localhost:5000/v1/api/tickle || exit 1' ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    networks:
+      - cryptalis-trading-bot-network
+    ports:
+      - '5000:5000'
+  cryptalis-trading-bot-server:
+    build: ./app
+    container_name: cryptalis-trading-bot-server
+    depends_on:
+      cryptalis-trading-bot-db:
+        condition: service_healthy
+      ibkr-clientportal-gw:
+        condition: service_healthy
+    env_file: app/.env
+    environment:
+      - POSTGRES_HOST=cryptalis-trading-bot-db
+    networks:
+      - cryptalis-trading-bot-network
+    ports:
+      - '8000:8000'
+  cryptalis-trading-bot-db:
+    image: ankane/pgvector
+    container_name: cryptalis-trading-bot-db
+    env_file: app/.env
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U postgres' ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - cryptalis-trading-bot-network
+    ports:
+      - '5432:5432'
+    volumes:
+      - cryptalis-trading-bot-db:/var/lib/postgresql/data
+
+volumes:
+  cryptalis-trading-bot-db:
+    driver: local
