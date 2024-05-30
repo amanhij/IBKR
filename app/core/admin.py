@@ -6,5 +6,6 @@ admin.site.index_title = None
 admin.site.site_url = None
 
 admin.site.register(Contract, ContractView)
+admin.site.register(Strategy, StrategyView)
 admin.site.register(Price, PriceView)
-admin.site.register(Position, PositionView)
+admin.site.register(Order, OrderView)

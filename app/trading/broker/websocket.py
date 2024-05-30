@@ -3,15 +3,16 @@ import os
 import ssl
 import threading
 import time
-from datetime import datetime, timezone
 
 import websocket
+
+from .base import ProcessMessage
+from .rest import reauthenticate_gateway, init_gateway
 
 
 class WebSocketClient:
     def __init__(self, uri):
-        self.prev_time = time.gmtime()
-        self.prev_price = None
+        self.processMessage = ProcessMessage()
         self.ws = websocket.WebSocketApp(
             url=uri,
             on_message=self.on_message,
@@ -22,24 +23,22 @@ class WebSocketClient:
 
     def on_message(self, ws, message):
         print(f'WS :: Message :: {message}')
-        payload = json.loads(message.decode("utf-8"))
-        if payload['topic'].startswith('smd+') and "31" in payload:
-            current_time = time.gmtime(payload['_updated'] / 1000)
-            if current_time.tm_min != self.prev_time.tm_min:
-                contid = payload['topic'][4:]
-                data = dict(
-                    last=payload["31"],
-                    bid=payload["84"] if "84" in payload else None,
-                    ask=payload["86"] if "86" in payload else None
-                )
-                from core.models import Price
-                update_time = datetime.fromtimestamp(payload['_updated'] / 1000, tz=timezone.utc)
-                Price.objects.update_or_create(conid=contid, update_time=update_time, defaults=data)
-                print(f'WS :: {contid} :: {time.strftime("%Y-%m-%d %H:%M:%SZ", current_time)}, Last: {payload["31"]}')
-                self.prev_time = current_time
+        payload = json.loads(message.decode('utf-8'))
+        if self.processMessage.is_market_data_message(payload):
+            self.processMessage.process_market_data_message(payload)
+        elif self.processMessage.is_order_operations_message(payload):
+            self.processMessage.process_order_operations_message(payload)
+        elif self.processMessage.is_profit_and_lost_message(payload):
+            self.processMessage.process_profit_and_lost_message(payload)
+        elif self.processMessage.is_system_message(payload):
+            self.processMessage.process_system_message(payload)
+        elif ('message' in payload and payload['message'] == 'waiting for session') \
+                or ('error' in payload and payload['error'] == 'not authenticated'):
+            ws.close()
 
     def on_error(self, ws, error):
         print(f'WS :: Error :: {error}')
+        ws.close()
 
     def on_close(self, ws, message, detail):
         print(f'WS :: Closed :: {message} :: {detail}')
@@ -47,17 +46,36 @@ class WebSocketClient:
     def on_open(self, ws):
         print('WS :: Connection Opened')
         time.sleep(3)
-        from core.models import Contract
-        for contract in Contract.objects.all():
-            print(f'WS :: Subscribing to contract {contract.conid}')
-            ws.send('smd+' + contract.conid + '+{"fields": ["31", "83", "84", "85", "86"]}')
-        print(f'WS :: init done!')
+        self.init(ws)
 
     def run(self):
-        self.ws.run_forever(sslopt={'cert_reqs': ssl.CERT_NONE})
+        while True:
+            self.ws.run_forever(sslopt={'cert_reqs': ssl.CERT_NONE})
+            reauthenticate_gateway()
+            init_gateway()
+            print(f'WS :: Thread restarting')
+
+    def init(self, ws):
+        # subscribe to contracts
+        from core.models import Contract
+        for contract in Contract.objects.all():
+            print(f'WS :: Subscribing to contract {contract.con_id}')
+            msg = self.processMessage.request_market_data_message(contract.con_id)
+            ws.send(msg)
+
+        # subscribe to account info
+        print('WS :: Subscribing to account info')
+        msg = self.processMessage.request_order_operations_message()
+        ws.send(msg)
+
+        print('WS :: Subscribing to profit and lost info')
+        msg = self.processMessage.request_profit_and_lost_message()
+        ws.send(msg)
+
+        print(f'WS :: init done!')
 
 
-def start_connection():
+def start_websocket():
     uri = os.getenv('IBKR_GATEWAY_WS')
     if uri:
         client = WebSocketClient(uri)

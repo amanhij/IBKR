@@ -9,12 +9,13 @@ services:
   ibkr-clientportal-gw:
     build: ./ibkr-clientportal-gw
     container_name: ibkr-clientportal-gw
+    restart: on-failure
     healthcheck:
       test: [ 'CMD-SHELL', 'curl --fail http://localhost:5000/v1/api/tickle || exit 1' ]
-      interval: 5s
-      timeout: 5s
+      interval: 1m
+      timeout: 10s
       retries: 20
-      start_period: 5s
+      start_period: 10s
     networks:
       - cryptalis-trading-bot-network
     ports:
@@ -22,6 +23,7 @@ services:
   cryptalis-trading-bot-server:
     build: ./app
     container_name: cryptalis-trading-bot-server
+    restart: on-failure
     depends_on:
       cryptalis-trading-bot-db:
         condition: service_healthy
@@ -30,6 +32,8 @@ services:
     env_file: app/.env
     environment:
       - POSTGRES_HOST=cryptalis-trading-bot-db
+      - IBKR_GATEWAY_URL=http://ibkr-clientportal-gw:5000/v1/api
+      - IBKR_GATEWAY_WS=ws://ibkr-clientportal-gw:5000/v1/api/ws
     networks:
       - cryptalis-trading-bot-network
     ports:
