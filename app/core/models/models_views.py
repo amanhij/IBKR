@@ -6,7 +6,7 @@ class ContractView(admin.ModelAdmin):
 
 
 class StrategyView(admin.ModelAdmin):
-    list_display = ['name', 'contract', 'side', 'account_id', 'quantity', 'limit_percentage', 'stop_percentage']
+    list_display = ['name', 'contract', 'side', 'account_id', 'quantity', 'limit_factor', 'stop_factor']
     list_filter = ['name', 'contract', 'side', 'account_id']
     search_fields = ('name', 'contract', 'side', 'account_id')
     sortable_by = ['name', 'contract', 'side', 'account_id']
@@ -25,11 +25,13 @@ class PriceView(admin.ModelAdmin):
 
 class OrderView(admin.ModelAdmin):
     list_display = ['order_id', 'parent_id', 'last_execution_time',
-                    'side', 'order_type', 'status',
+                    'side', 'order_type', 'status', 'ccp_status',
                     'total_size', 'price', 'stop_price']
     list_filter = ['last_execution_time', 'side', 'order_type', 'status']
     search_fields = ('last_execution_time', 'side', 'order_type', 'status')
     sortable_by = ['order_id', 'last_execution_time']
+    readonly_fields = ['account_id', 'con_id', 'parent_id', 'order_id', 'order_ref', 'order_description',
+                       'last_execution_time', 'side', 'order_type', 'status', 'ccp_status', 'total_size', 'price', 'avg_price', 'stop_price']
 
     def get_ordering(self, request):
         return ['-order_id']  #

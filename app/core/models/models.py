@@ -21,8 +21,9 @@ class Strategy(models.Model):
     side = models.CharField(max_length=4, choices=OrderSide.choices, default=OrderSide.BUY, blank=False, null=False)
     account_id = models.CharField(max_length=16, blank=False, null=False)
     quantity = models.FloatField(null=False)
-    limit_percentage = models.FloatField(null=False)
-    stop_percentage = models.FloatField(null=False)
+    limit_factor = models.FloatField(null=False)
+    stop_factor = models.FloatField(null=False)
+    precision = models.IntegerField(null=False, default=5)
 
     class Meta:
         unique_together = ['name', 'contract']
@@ -32,8 +33,8 @@ class Strategy(models.Model):
         return (f'{self.name} :: {self.contract} '
                 f'- Side :: {self.side} '
                 f'- Quantity :: {self.quantity} '
-                f'- Limit :: {self.limit_percentage}'
-                f'- Stop :: {self.stop_percentage}')
+                f'- Limit :: {self.limit_factor}'
+                f'- Stop :: {self.stop_factor}')
 
 
 class Price(models.Model):
@@ -65,6 +66,7 @@ class Order(models.Model):
     side = models.CharField(max_length=4, blank=False, null=False)
     order_type = models.CharField(max_length=16, blank=False, null=False)
     status = models.CharField(max_length=16, blank=False, null=False)
+    ccp_status = models.CharField(max_length=32, blank=True, null=True)
     total_size = models.FloatField(null=True)
     price = models.FloatField(null=True)
     avg_price = models.FloatField(null=True)

@@ -1,13 +1,13 @@
 import json
 import os
 import ssl
-import threading
 import time
 
 import websocket
 
 from .base import ProcessMessage
-from .rest import reauthenticate_gateway, init_gateway
+from .rest import init_gateway
+from ..strategy import clemence_clementine_run_async
 
 
 class WebSocketClient:
@@ -25,7 +25,8 @@ class WebSocketClient:
         print(f'WS :: Message :: {message}')
         payload = json.loads(message.decode('utf-8'))
         if self.processMessage.is_market_data_message(payload):
-            self.processMessage.process_market_data_message(payload)
+            if self.processMessage.process_market_data_message(payload):
+                clemence_clementine_run_async()
         elif self.processMessage.is_order_operations_message(payload):
             self.processMessage.process_order_operations_message(payload)
         elif self.processMessage.is_profit_and_lost_message(payload):
@@ -49,11 +50,8 @@ class WebSocketClient:
         self.init(ws)
 
     def run(self):
-        while True:
-            self.ws.run_forever(sslopt={'cert_reqs': ssl.CERT_NONE})
-            reauthenticate_gateway()
-            init_gateway()
-            print(f'WS :: Thread restarting')
+        self.ws.run_forever(sslopt={'cert_reqs': ssl.CERT_NONE})
+        print(f'WS :: Execution Stopped')
 
     def init(self, ws):
         # subscribe to contracts
@@ -75,9 +73,11 @@ class WebSocketClient:
         print(f'WS :: init done!')
 
 
-def start_websocket():
+def run_websocket():
     uri = os.getenv('IBKR_GATEWAY_WS')
     if uri:
+        init_gateway()
+        time.sleep(10)
         client = WebSocketClient(uri)
-        ws_thread = threading.Thread(target=client.run, daemon=True)
-        ws_thread.start()
+        client.run()
+        time.sleep(30)

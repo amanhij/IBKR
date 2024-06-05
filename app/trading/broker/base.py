@@ -1,6 +1,5 @@
 import time
 from datetime import datetime, timezone
-from typing import List
 
 
 class ProcessMessage:
@@ -16,7 +15,8 @@ class ProcessMessage:
     def is_market_data_message(self, payload: dict) -> bool:
         return 'topic' in payload and payload['topic'].startswith('smd+')
 
-    def process_market_data_message(self, payload: dict):
+    def process_market_data_message(self, payload: dict) -> bool:
+        new_price = False
         current_time = time.gmtime(payload['_updated'] / 1000)
         if '31' in payload and current_time.tm_min != self.prev_time.tm_min:
             con_id = payload['topic'][4:]
@@ -28,23 +28,29 @@ class ProcessMessage:
             update_time = datetime.fromtimestamp(payload['_updated'] / 1000, tz=timezone.utc)
             Price.objects.update_or_create(con_id=con_id, update_time=update_time, defaults=data)
             self.prev_time = current_time
+            new_price = True
         self.prev_bid_price = payload['84'] if '84' in payload else self.prev_bid_price
         self.prev_ask_price = payload['86'] if '86' in payload else self.prev_ask_price
+        return new_price
 
     def request_order_operations_message(self) -> str:
         return 'sor+{}'
 
     def is_order_operations_message(self, payload: dict) -> bool:
-        return 'topic' in payload and payload['topic'].startswith('sor+')
+        return 'topic' in payload and payload['topic'].startswith('sor')
 
     def process_order_operations_message(self, payload: dict):
-        pass
+        if 'args' in payload:
+            args = payload['args']
+            for order in args:
+                from trading.core import update_order
+                update_order(order)
 
     def request_profit_and_lost_message(self) -> str:
         return 'spl+{}'
 
     def is_profit_and_lost_message(self, payload: dict) -> bool:
-        return 'topic' in payload and payload['topic'].startswith('spl+')
+        return 'topic' in payload and payload['topic'].startswith('spl')
 
     def process_profit_and_lost_message(self, payload: dict):
         pass

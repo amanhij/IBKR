@@ -1,8 +1,8 @@
 version: '3.9'
-name: cryptalis-trading-bot
+name: cryptalis-trading
 networks:
-  cryptalis-trading-bot-network:
-    name: cryptalis_trading_bot_network
+  cryptalis-trading-network:
+    name: cryptalis_trading_network
     external: false
 
 services:
@@ -17,30 +17,45 @@ services:
       retries: 20
       start_period: 10s
     networks:
-      - cryptalis-trading-bot-network
+      - cryptalis-trading-network
     ports:
       - '5000:5000'
-  cryptalis-trading-bot-server:
+  cryptalis-trading-server:
     build: ./app
-    container_name: cryptalis-trading-bot-server
+    container_name: cryptalis-trading-server
     restart: on-failure
     depends_on:
-      cryptalis-trading-bot-db:
+      cryptalis-trading-db:
+        condition: service_healthy
+    env_file: app/.env
+    environment:
+      - POSTGRES_HOST=cryptalis-trading-db
+      - IBKR_GATEWAY_URL=http://ibkr-clientportal-gw:5000/v1/api
+      - IBKR_GATEWAY_WS=ws://ibkr-clientportal-gw:5000/v1/api/ws
+    networks:
+      - cryptalis-trading-network
+    ports:
+      - '8000:8000'
+  cryptalis-trading-bot:
+    build: ./app
+    container_name: cryptalis-trading-bot
+    command: [ 'manage.py', 'trading_bot' ]
+    restart: on-failure
+    depends_on:
+      cryptalis-trading-db:
         condition: service_healthy
       ibkr-clientportal-gw:
         condition: service_healthy
     env_file: app/.env
     environment:
-      - POSTGRES_HOST=cryptalis-trading-bot-db
+      - POSTGRES_HOST=cryptalis-trading-db
       - IBKR_GATEWAY_URL=http://ibkr-clientportal-gw:5000/v1/api
       - IBKR_GATEWAY_WS=ws://ibkr-clientportal-gw:5000/v1/api/ws
     networks:
-      - cryptalis-trading-bot-network
-    ports:
-      - '8000:8000'
-  cryptalis-trading-bot-db:
+      - cryptalis-trading-network
+  cryptalis-trading-db:
     image: ankane/pgvector
-    container_name: cryptalis-trading-bot-db
+    container_name: cryptalis-trading-db
     env_file: app/.env
     healthcheck:
       test: [ 'CMD-SHELL', 'pg_isready -U postgres' ]
@@ -49,12 +64,12 @@ services:
       retries: 5
       start_period: 5s
     networks:
-      - cryptalis-trading-bot-network
+      - cryptalis-trading-network
     ports:
       - '5432:5432'
     volumes:
-      - cryptalis-trading-bot-db:/var/lib/postgresql/data
+      - cryptalis-trading-db:/var/lib/postgresql/data
 
 volumes:
-  cryptalis-trading-bot-db:
+  cryptalis-trading-db:
     driver: local
