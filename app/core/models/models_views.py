@@ -1,4 +1,8 @@
 from django.contrib import admin
+from import_export import resources
+from import_export.admin import ExportMixin
+
+from core.models import Price, Order
 
 
 class ContractView(admin.ModelAdmin):
@@ -12,7 +16,12 @@ class StrategyView(admin.ModelAdmin):
     sortable_by = ['name', 'contract', 'side', 'account_id']
 
 
-class PriceView(admin.ModelAdmin):
+class PriceResource(resources.ModelResource):
+    class Meta:
+        model = Price
+
+
+class PriceView(ExportMixin, admin.ModelAdmin):
     list_display = ['con_id', 'update_time', 'last', 'bid', 'ask', ]
     list_filter = ['con_id', 'update_time']
     search_fields = ('con_id', 'update_time')
@@ -23,7 +32,12 @@ class PriceView(admin.ModelAdmin):
         return False
 
 
-class OrderView(admin.ModelAdmin):
+class OrderResource(resources.ModelResource):
+    class Meta:
+        model = Order
+
+
+class OrderView(ExportMixin, admin.ModelAdmin):
     list_display = ['order_id', 'parent_id', 'last_execution_time',
                     'side', 'order_type', 'status', 'ccp_status',
                     'total_size', 'price', 'stop_price']
@@ -34,7 +48,7 @@ class OrderView(admin.ModelAdmin):
                        'last_execution_time', 'side', 'order_type', 'status', 'ccp_status', 'total_size', 'price', 'avg_price', 'stop_price']
 
     def get_ordering(self, request):
-        return ['-order_id']  #
+        return ['-last_execution_time']  #
 
     def has_add_permission(self, request, obj=None):
         return False

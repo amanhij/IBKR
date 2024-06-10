@@ -80,4 +80,4 @@ def run_websocket():
         time.sleep(10)
         client = WebSocketClient(uri)
         client.run()
-        time.sleep(30)
+        time.sleep(10)
