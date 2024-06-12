@@ -32,7 +32,8 @@ class PriceView(ExportMixin, admin.ModelAdmin):
         return False
 
     def contract_name(self, obj):
-        return Contract.objects.filter(con_id=obj.con_id).first().name
+        contract = Contract.objects.filter(con_id=obj.con_id).first()
+        return contract.name if contract is not None else ''
 
 
 class OrderResource(resources.ModelResource):
