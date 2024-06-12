@@ -1,7 +1,8 @@
 import threading
 
 from core.models import Price, OrderSide, Strategy
-from trading.core import create_order, update_windows
+from trading.core import create_order
+from trading.core.order import auto_close, update_windows
 
 
 def clemence_clementine_run_async(con_id: str):
@@ -13,6 +14,7 @@ def clemence_clementine_run(con_id: str):
     strategies = Strategy.objects.filter(contract__con_id=con_id).all()
     for strategy in strategies:
         current_price, last_price = get_prices(strategy.contract.con_id)
+        auto_close(strategy, current_price)
         if ((strategy.side == OrderSide.BUY and current_price.last > last_price.last)
                 or (strategy.side == OrderSide.SELL and current_price.last < last_price.last)):
             update_windows(strategy, current_price)

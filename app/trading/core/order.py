@@ -1,7 +1,9 @@
 import threading
+import time
 from datetime import datetime, timezone
 
 from core.models import Order, Strategy, Price, OrderSide
+from trading.core import next_order_number
 
 
 def sync_orders():
@@ -17,26 +19,58 @@ def sync_orders():
 
 
 def create_order(strategy: Strategy, current_price: Price):
-    from trading.broker import create_bracket_order
     delta = 10 ** -strategy.precision
-    response = create_bracket_order(
-        strategy.account_id,
-        int(strategy.contract.con_id),
-        strategy.side,
-        strategy.quantity,
-        round(current_price.ask + delta if strategy.side == OrderSide.BUY else current_price.bid - delta, strategy.precision),
-        round(current_price.last * strategy.limit_factor, strategy.precision),
-        round(current_price.last * strategy.stop_factor, strategy.precision),
-    )
-    if response is not None:
-        for order in response:
-            if 'id' in order:
-                from trading.broker import confirm_message
-                confirm_message(order['id'])
+    parent_id = next_order_number()
+    now = int(time.time()) * 1000
+    update_order({
+        'account': strategy.account_id,
+        'conid': int(strategy.contract.con_id),
+        'orderId': parent_id,
+        'order_ref': parent_id,
+        'lastExecutionTime_r': now,
+        'side': strategy.side,
+        'origOrderType': 'LIMIT',
+        'status': 'Filled',
+        'order_ccp_status': 'Filled',
+        'totalSize': '1',
+        'price': round(current_price.ask + delta if strategy.side == OrderSide.BUY else current_price.bid - delta, strategy.precision),
+    })
+
+    order_id = next_order_number()
+    update_order({
+        'account': strategy.account_id,
+        'conid': int(strategy.contract.con_id),
+        'parentId': parent_id,
+        'orderId': order_id,
+        'order_ref': order_id,
+        'lastExecutionTime_r': now,
+        'side': 'SELL' if strategy.side == 'BUY' else 'BUY',
+        'origOrderType': 'LIMIT',
+        'status': 'Submitted',
+        'order_ccp_status': 'Replaced',
+        'totalSize': '1',
+        'price': round(current_price.last * strategy.limit_factor, strategy.precision)
+    })
+
+    order_id = next_order_number()
+    update_order({
+        'account': strategy.account_id,
+        'conid': int(strategy.contract.con_id),
+        'parentId': parent_id,
+        'orderId': order_id,
+        'order_ref': order_id,
+        'lastExecutionTime_r': now,
+        'side': 'SELL' if strategy.side == 'BUY' else 'BUY',
+        'origOrderType': 'STOP',
+        'status': 'PreSubmitted',
+        'order_ccp_status': 'Replaced',
+        'totalSize': '1',
+        'stop_price': round(current_price.last * strategy.stop_factor, strategy.precision)
+    })
 
 
 def update_windows(strategy: Strategy, current_price: Price):
-    from trading.broker import modify_order
+    # from trading.broker import modify_order
     side_filter = OrderSide.BUY if strategy.side == OrderSide.SELL else OrderSide.SELL
     stop_limit_orders = Order.objects.filter(
         parent_id__isnull=False,
@@ -45,11 +79,52 @@ def update_windows(strategy: Strategy, current_price: Price):
         side=side_filter,
         status__in=['Submitted', 'PreSubmitted'])
     for order in stop_limit_orders:
-        modify_order(
-            order,
-            round(current_price.last *
-                  (strategy.limit_factor if order.order_type == 'LIMIT' else strategy.stop_factor), strategy.precision),
-        )
+        if order.order_type == 'STOP':
+            update_order({
+                'orderId': order.order_id,
+                'stop_price': round(current_price.last, strategy.precision)
+            })
+        else:
+            update_order({
+                'orderId': order.order_id,
+                'price': round(current_price.last * strategy.limit_factor, strategy.precision)
+            })
+
+
+def auto_close(strategy: Strategy, current_price: Price):
+    side_filter = OrderSide.BUY if strategy.side == OrderSide.SELL else OrderSide.SELL
+    stop_limit_orders = Order.objects.filter(
+        parent_id__isnull=False,
+        side=side_filter,
+        status__in=['Submitted', 'PreSubmitted'])
+    now = int(time.time()) * 1000
+    for order in stop_limit_orders:
+        if ((order.side == 'SELL' and order.order_type == 'STOP' and order.stop_price > current_price.last)
+                or (order.side == 'BUY' and order.order_type == 'STOP' and order.stop_price < current_price.last)):
+            update_order({
+                'orderId': order.order_id,
+                'status': 'Filled',
+                'lastExecutionTime_r': now
+            })
+            limit_order = Order.objects.filter(parent_id=order.parent_id, order_type='LIMIT').first()
+            update_order({
+                'orderId': limit_order.order_id,
+                'status': 'Cancelled',
+                'lastExecutionTime_r': now
+            })
+        elif ((order.side == 'SELL' and order.order_type == 'LIMIT' and order.price < current_price.last)
+              or (order.side == 'BUY' and order.order_type == 'LIMIT' and order.price > current_price.last)):
+            update_order({
+                'orderId': order.order_id,
+                'status': 'Filled',
+                'lastExecutionTime_r': now
+            })
+            stop_order = Order.objects.filter(parent_id=order.parent_id, order_type='STOP').first()
+            update_order({
+                'orderId': stop_order.order_id,
+                'status': 'Cancelled',
+                'lastExecutionTime_r': now
+            })
 
 
 def update_order(order: dict):
