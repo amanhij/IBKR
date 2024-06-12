@@ -95,7 +95,7 @@ def create_bracket_order(account_id: str, con_id: int,
         ]}
 
     response = requests.post(
-        url=f'{IBKR_GATEWAY_URL}/iserver/account/{account_id}/orders/whatif',
+        url=f'{IBKR_GATEWAY_URL}/iserver/account/{account_id}/orders',
         headers={
             'Content-Type': 'application/json; charset=UTF-8',
             'Accept': 'application/json; charset=UTF-8'
