@@ -104,7 +104,8 @@ def create_bracket_order(account_id: str, con_id: int,
     print(f'REST :: Create order :: \n\t {payload} \n\t {response.status_code} {response.text}')
     try:
         if response.status_code != 200:
-            raise Exception(f'There was an error getting orders :: {response.status_code} {response.text}')
+            print(f'REST :: ERROR :: There was an error creating orders :: {payload} :: {response.status_code} {response.text}')
+            return None
         return response.json()
     except JSONDecodeError:
         return None
@@ -129,7 +130,7 @@ def modify_order(order: Order, price: float):
         json=payload)
     print(f'REST :: Updated order :: \n\t {payload} \n\t {response.status_code} {response.text}')
     if response.status_code != 200:
-        raise Exception(f'There was an error updating orders :: {response.status_code} {response.text}')
+        print(f'REST :: ERROR :: There was an error updating orders :: {payload} :: {response.status_code} {response.text}')
 
 
 def confirm_message(id: str):
@@ -141,5 +142,6 @@ def confirm_message(id: str):
         },
         json={'confirmed': True})
     if response.status_code != 200:
-        raise Exception(f'There was an error confirming messages :: {response.status_code} {response.text}')
-    print(f'REST :: Confirm Message :: {response.status_code} {response.text}')
+        print(f'REST :: ERROR :: There was an error confirming messages :: {id} :: {response.status_code} {response.text}')
+    else:
+        print(f'REST :: Confirm Message :: {response.status_code} {response.text}')

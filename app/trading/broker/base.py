@@ -2,18 +2,19 @@ import time
 from datetime import datetime, timezone
 
 
-class ProcessMessage:
-    def __init__(self):
+class ProcessMarketDataMessage:
+    def __init__(self, con_id):
+        self.con_id = con_id
         self.prev_time = time.gmtime()
         self.prev_last_price = None
         self.prev_bid_price = None
         self.prev_ask_price = None
 
-    def request_market_data_message(self, conid: str) -> str:
-        return 'smd+' + conid + '+{"fields": ["31", "83", "84", "85", "86"]}'
+    def request_market_data_message(self) -> str:
+        return 'smd+' + self.con_id + '+{"fields": ["31", "83", "84", "85", "86"]}'
 
     def is_market_data_message(self, payload: dict) -> bool:
-        return 'topic' in payload and payload['topic'].startswith('smd+')
+        return 'topic' in payload and payload['topic'] == f'smd+{self.con_id}'
 
     def process_market_data_message(self, payload: dict) -> bool:
         new_price = False
@@ -33,6 +34,8 @@ class ProcessMessage:
         self.prev_ask_price = payload['86'] if '86' in payload else self.prev_ask_price
         return new_price
 
+
+class ProcessOrderMessage:
     def request_order_operations_message(self) -> str:
         return 'sor+{}'
 

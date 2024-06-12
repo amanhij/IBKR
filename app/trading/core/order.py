@@ -28,10 +28,11 @@ def create_order(strategy: Strategy, current_price: Price):
         round(current_price.last * strategy.limit_factor, strategy.precision),
         round(current_price.last * strategy.stop_factor, strategy.precision),
     )
-    for order in response:
-        if 'id' in order:
-            from trading.broker import confirm_message
-            confirm_message(order['id'])
+    if response is not None:
+        for order in response:
+            if 'id' in order:
+                from trading.broker import confirm_message
+                confirm_message(order['id'])
 
 
 def update_windows(strategy: Strategy, current_price: Price):

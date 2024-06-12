@@ -5,14 +5,15 @@ import time
 
 import websocket
 
-from .base import ProcessMessage
+from .base import ProcessMarketDataMessage, ProcessOrderMessage
 from .rest import init_gateway
 from ..strategy import clemence_clementine_run_async
 
 
 class WebSocketClient:
     def __init__(self, uri):
-        self.processMessage = ProcessMessage()
+        self.processMarketDataMessage = {}
+        self.processOrderMessage = ProcessOrderMessage()
         self.ws = websocket.WebSocketApp(
             url=uri,
             on_message=self.on_message,
@@ -24,15 +25,18 @@ class WebSocketClient:
     def on_message(self, ws, message):
         print(f'WS :: Message :: {message}')
         payload = json.loads(message.decode('utf-8'))
-        if self.processMessage.is_market_data_message(payload):
-            if self.processMessage.process_market_data_message(payload):
-                clemence_clementine_run_async()
-        elif self.processMessage.is_order_operations_message(payload):
-            self.processMessage.process_order_operations_message(payload)
-        elif self.processMessage.is_profit_and_lost_message(payload):
-            self.processMessage.process_profit_and_lost_message(payload)
-        elif self.processMessage.is_system_message(payload):
-            self.processMessage.process_system_message(payload)
+        for processMarketDataMessage in self.processMarketDataMessage.values():
+            if processMarketDataMessage.is_market_data_message(payload):
+                if processMarketDataMessage.process_market_data_message(payload):
+                    con_id = getattr(processMarketDataMessage, 'con_id')
+                    clemence_clementine_run_async(con_id)
+                return
+        if self.processOrderMessage.is_order_operations_message(payload):
+            self.processOrderMessage.process_order_operations_message(payload)
+        elif self.processOrderMessage.is_profit_and_lost_message(payload):
+            self.processOrderMessage.process_profit_and_lost_message(payload)
+        elif self.processOrderMessage.is_system_message(payload):
+            self.processOrderMessage.process_system_message(payload)
         elif ('message' in payload and payload['message'] == 'waiting for session') \
                 or ('error' in payload and payload['error'] == 'not authenticated'):
             ws.close()
@@ -58,16 +62,17 @@ class WebSocketClient:
         from core.models import Contract
         for contract in Contract.objects.all():
             print(f'WS :: Subscribing to contract {contract.con_id}')
-            msg = self.processMessage.request_market_data_message(contract.con_id)
+            self.processMarketDataMessage[contract.con_id] = ProcessMarketDataMessage(contract.con_id)
+            msg = self.processMarketDataMessage[contract.con_id].request_market_data_message()
             ws.send(msg)
 
         # subscribe to account info
         print('WS :: Subscribing to account info')
-        msg = self.processMessage.request_order_operations_message()
+        msg = self.processOrderMessage.request_order_operations_message()
         ws.send(msg)
 
         print('WS :: Subscribing to profit and lost info')
-        msg = self.processMessage.request_profit_and_lost_message()
+        msg = self.processOrderMessage.request_profit_and_lost_message()
         ws.send(msg)
 
         print(f'WS :: init done!')

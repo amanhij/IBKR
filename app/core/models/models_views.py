@@ -2,7 +2,7 @@ from django.contrib import admin
 from import_export import resources
 from import_export.admin import ExportMixin
 
-from core.models import Price, Order
+from core.models import Price, Order, Contract
 
 
 class ContractView(admin.ModelAdmin):
@@ -22,7 +22,7 @@ class PriceResource(resources.ModelResource):
 
 
 class PriceView(ExportMixin, admin.ModelAdmin):
-    list_display = ['con_id', 'update_time', 'last', 'bid', 'ask', ]
+    list_display = ['con_id', 'contract_name', 'update_time', 'last', 'bid', 'ask', ]
     list_filter = ['con_id', 'update_time']
     search_fields = ('con_id', 'update_time')
     sortable_by = ['con_id', 'update_time']
@@ -31,6 +31,9 @@ class PriceView(ExportMixin, admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def contract_name(self, obj):
+        return Contract.objects.filter(con_id=obj.con_id).first().name
+
 
 class OrderResource(resources.ModelResource):
     class Meta:
@@ -38,12 +41,12 @@ class OrderResource(resources.ModelResource):
 
 
 class OrderView(ExportMixin, admin.ModelAdmin):
-    list_display = ['order_id', 'parent_id', 'last_execution_time',
+    list_display = ['order_id', 'parent_id', 'con_id', 'last_execution_time',
                     'side', 'order_type', 'status', 'ccp_status',
                     'total_size', 'price', 'stop_price']
-    list_filter = ['last_execution_time', 'side', 'order_type', 'status']
-    search_fields = ('last_execution_time', 'side', 'order_type', 'status')
-    sortable_by = ['order_id', 'last_execution_time']
+    list_filter = ['con_id', 'last_execution_time', 'side', 'order_type', 'status']
+    search_fields = ('con_id', 'last_execution_time', 'side', 'order_type', 'status')
+    sortable_by = ['con_id', 'order_id', 'last_execution_time']
     readonly_fields = ['account_id', 'con_id', 'parent_id', 'order_id', 'order_ref', 'order_description',
                        'last_execution_time', 'side', 'order_type', 'status', 'ccp_status', 'total_size', 'price', 'avg_price', 'stop_price']
 
