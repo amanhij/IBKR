@@ -31,6 +31,10 @@ ALLOWED_HOSTS = [
     os.getenv('HOST', '*')
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    os.getenv('ORIGIN', '*')
+]
+
 # Application definition
 
 INSTALLED_APPS = [

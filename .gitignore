@@ -2,6 +2,7 @@
 __pycache__
 
 venv
+app/.env
 
 .idea
 .vscode
